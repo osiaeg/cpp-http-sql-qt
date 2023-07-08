@@ -40,11 +40,11 @@ int main() {
     CROW_ROUTE(app, "/students").methods(crow::HTTPMethod::GET)
     ([](){
         connection C(DB_STRING);
-        work W(C);
+        nontransaction N(C);
 
         std::vector<crow::json::wvalue> students;
 
-        result R(W.exec("select * from students"));
+        result R(N.exec("select * from students"));
 
         for (result::const_iterator c = R.begin(); c != R.end(); ++c){
             crow::json::wvalue student = {
