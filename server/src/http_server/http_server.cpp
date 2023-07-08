@@ -3,13 +3,10 @@
 //
 #include "crow.h"
 //#include "crow_all.h"
-#include <string>
-#include <format>
-#include <string_view>
 #include <iostream>
+#include <string>
 #include <pqxx/pqxx>
 
-//using namespace std;
 using namespace pqxx;
 
 std::string CREAT_TABLE_SQL = "CREATE TABLE IF NOT EXISTS public.students\n"
@@ -30,34 +27,6 @@ std::string CREAT_TABLE_SQL = "CREATE TABLE IF NOT EXISTS public.students\n"
 
 std::string DB_STRING{"dbname = postgres user = user password = admin hostaddr = 127.0.0.1 port = 54320"};
 
-//class DataBaseManager {
-//public:
-//    DataBaseManager();
-//private:
-//    connection* connection_ptr;
-//    void creatDB(string sql);
-//};
-//
-//DataBaseManager::DataBaseManager(){
-//    try {
-//        connection C(DB_STRING);
-//        connection_ptr = &C;
-//        if (C.is_open()) {
-//            cout << "Opened database successfully: " << C.dbname() << endl;
-//        } else {
-//            cout << "Can't open database" << endl;
-//        }
-//    }
-//    catch (const std::exception &e) {
-//        cerr << e.what() << std::endl;
-//    }
-//}
-//
-//void DataBaseManager::creatDB(string sql) {
-//    work W(connection_ptr);
-//
-//}
-
 void creatTable(connection &dbConnection) {
     work W(dbConnection);
     W.exec(CREAT_TABLE_SQL);
@@ -72,10 +41,10 @@ int main() {
     ([](){
         connection C(DB_STRING);
         work W(C);
-        std::string sql{"select * from students"};
-        result R(W.exec(sql));
 
         std::vector<crow::json::wvalue> students;
+
+        result R(W.exec("select * from students"));
 
         for (result::const_iterator c = R.begin(); c != R.end(); ++c){
             crow::json::wvalue student = {
@@ -89,28 +58,54 @@ int main() {
             students.push_back(student);
         }
 
-        crow::json::wvalue x = {students};
-        return x;
+        return crow::json::wvalue({students});
     });
 
     CROW_ROUTE(app, "/student").methods(crow::HTTPMethod::POST)
             ([](const crow::request& req){
                 auto student = crow::json::load(req.body);
-                std::cout << student["student_course_num"] << std::endl;
 
                 try {
                     connection C(DB_STRING);
                     work W(C);
-                    std::string insert_sql{"INSERT INTO public.students(student_fio, student_birth_year, student_course_num, student_group_name) VALUES ('Egor', '2020-11-22', 5, 'O4150');"};
+                    std::string insert_sql{"INSERT INTO public.students(student_fio, student_birth_year, student_course_num, student_group_name) VALUES ('" + std::string{student["student_fio"]} +
+                            "', '" + std::string{student["student_birth_year"]} +
+                            "', " + student["student_course_num"].operator std::string() +
+                            ", '" + std::string{student["student_group_name"]} + "');"};
                     W.exec(insert_sql);
                     W.commit();
                 } catch (const std::exception &e) {
                     return crow::response(500);
                 }
 
-                return crow::response(200, std::string{"Student successfully added."});
+                return crow::response(200, "Student successfully added.");
             });
 
+    CROW_ROUTE(app, "/student/delete/<int>").methods(crow::HTTPMethod::DELETE)
+            ([](int id){
+
+                try {
+                    connection C(DB_STRING);
+                    work W(C);
+
+                    std::string deleteSQL{
+                        "DELETE FROM public.students WHERE student_id = " + to_string(id) + ";"
+                    };
+
+                    result R(W.exec("select * from students where student_id = " + to_string(id) + ";"));
+
+                    if (R.empty()) {
+                        return crow::response(404, "Student not found.");
+                    }
+
+                    W.exec(deleteSQL);
+                    W.commit();
+                } catch (const std::exception &e) {
+                    return crow::response(500);
+                }
+
+                return crow::response(200, "Student successfully deleted");
+            });
 
     try {
         connection C(DB_STRING);
@@ -122,8 +117,6 @@ int main() {
         }
 
         creatTable(C);
-//        {
-//        }
     }
     catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;
