@@ -7,7 +7,7 @@ docker-compose up -d
 
 ## PgAdmin4
 ### Connection to pgadmin
-http://localhost:5050
+http://localhost:8080
 
 Login: raj@nola.com
 
